@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz App</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: #fafafa; font-family: 'Space Grotesk', sans-serif;
+    background-image: linear-gradient(135deg, #fff5f0 0%, #f0f5ff 100%);
+  }
+  .card {
+    width: 540px; background: #fff; border-radius: 24px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.04), 0 20px 60px rgba(0,0,0,0.08);
+    overflow: hidden;
+  }
+  .progress-bar { height: 5px; background: #f0f0f0; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg,#ff6b35,#ff9500); transition: width 0.4s ease; }
+  .header { padding: 28px 32px 20px; display: flex; justify-content: space-between; align-items: center; }
+  .q-counter { font-size: 13px; color: #999; font-weight: 500; }
+  .score-badge {
+    background: #fff5f0; border: 1.5px solid #ffd0b0;
+    color: #ff6b35; padding: 4px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+  }
+  .body { padding: 0 32px 32px; }
+  .question { font-size: 20px; font-weight: 600; color: #1a1a1a; line-height: 1.4; margin-bottom: 28px; min-height: 60px; }
+  .options { display: flex; flex-direction: column; gap: 12px; }
+  .opt {
+    padding: 16px 20px; border-radius: 14px; border: 2px solid #f0f0f0;
+    cursor: pointer; font-size: 15px; color: #333; font-family: 'Space Grotesk';
+    text-align: left; background: #fff; transition: all 0.2s; font-weight: 500;
+  }
+  .opt:hover:not(:disabled) { border-color: #ff9500; color: #ff6b35; background: #fff9f5; }
+  .opt.correct { border-color: #22c55e; background: #f0fdf4; color: #16a34a; }
+  .opt.wrong { border-color: #ef4444; background: #fef2f2; color: #dc2626; }
+  .opt:disabled { cursor: default; }
+  .next-btn {
+    width: 100%; margin-top: 24px; padding: 16px;
+    background: linear-gradient(135deg, #ff6b35, #ff9500);
+    color: #fff; border: none; border-radius: 14px;
+    font-family: 'Space Grotesk'; font-size: 16px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.2s; display: none;
+  }
+  .next-btn:hover { opacity: 0.9; }
+  .result { padding: 40px 32px; text-align: center; display: none; }
+  .result-emoji { font-size: 64px; margin-bottom: 16px; }
+  .result h2 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .result p { color: #888; font-size: 15px; margin-bottom: 28px; }
+  .result-score { font-size: 48px; font-weight: 700; color: #ff6b35; margin-bottom: 4px; }
+  .restart { padding: 14px 32px; background: #1a1a1a; color: #fff; border: none; border-radius: 14px; font-family: 'Space Grotesk'; font-size: 15px; font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="progress-bar"><div class="progress-fill" id="prog"></div></div>
+  <div class="header">
+    <span class="q-counter" id="qcount">Question 1 of 8</span>
+    <span class="score-badge">Score: <span id="scoreDisplay">0</span></span>
+  </div>
+  <div class="body" id="quizBody">
+    <div class="question" id="question"></div>
+    <div class="options" id="options"></div>
+    <button class="next-btn" id="nextBtn" onclick="next()">Next Question →</button>
+  </div>
+  <div class="result" id="result">
+    <div class="result-emoji" id="emoji"></div>
+    <div class="result-score" id="finalScore"></div>
+    <h2>Quiz Complete!</h2>
+    <p id="resultMsg"></p>
+    <button class="restart" onclick="restart()">Try Again</button>
+  </div>
+</div>
+<script>
+  const qs = [
+    {q:"What does HTML stand for?", opts:["HyperText Markup Language","High-Level Text Machine Language","HyperTransfer Markup Logic","None of the above"], ans:0},
+    {q:"Which CSS property controls text size?", opts:["text-size","font-size","size","letter-size"], ans:1},
+    {q:"Which tag is used to link a CSS file?", opts:["<style>","<css>","<link>","<script>"], ans:2},
+    {q:"What does JS stand for?", opts:["Java Style","JavaScript","JustScript","JavaSource"], ans:1},
+    {q:"Which method adds an element to the end of an array?", opts:["push()","pop()","shift()","append()"], ans:0},
+    {q:"What is the correct way to declare a variable in JS?", opts:["variable x=5","int x=5","let x=5","x:=5"], ans:2},
+    {q:"Which HTML tag creates a hyperlink?", opts:["<link>","<href>","<a>","<url>"], ans:2},
+    {q:"What does API stand for?", opts:["Application Programming Interface","Automated Program Index","Applied Processing Input","App Protocol Integration"], ans:0},
+  ];
+  let cur=0, score=0, answered=false;
+  function load() {
+    const q = qs[cur];
+    document.getElementById('question').textContent = q.q;
+    document.getElementById('qcount').textContent = `Question ${cur+1} of ${qs.length}`;
+    document.getElementById('prog').style.width = `${(cur/qs.length)*100}%`;
+    document.getElementById('options').innerHTML = q.opts.map((o,i)=>
+      `<button class="opt" onclick="pick(this,${i})">${o}</button>`).join('');
+    document.getElementById('nextBtn').style.display='none';
+    answered=false;
+  }
+  function pick(btn, i) {
+    if (answered) return; answered=true;
+    const q=qs[cur]; const opts=document.querySelectorAll('.opt');
+    opts.forEach(o=>o.disabled=true);
+    if(i===q.ans){score++;btn.classList.add('correct');}
+    else{btn.classList.add('wrong');opts[q.ans].classList.add('correct');}
+    document.getElementById('scoreDisplay').textContent=score;
+    document.getElementById('nextBtn').style.display='block';
+    document.getElementById('nextBtn').textContent = cur===qs.length-1 ? 'See Results 🎉' : 'Next Question →';
+  }
+  function next() {
+    cur++;
+    if(cur>=qs.length){showResult();}else{load();}
+  }
+  function showResult() {
+    document.getElementById('quizBody').style.display='none';
+    const r=document.getElementById('result'); r.style.display='block';
+    const pct=Math.round((score/qs.length)*100);
+    document.getElementById('finalScore').textContent=`${score}/${qs.length}`;
+    document.getElementById('emoji').textContent=pct>=80?'🏆':pct>=50?'👍':'💪';
+    document.getElementById('resultMsg').textContent=pct>=80?'Excellent work! You nailed it!':pct>=50?'Good job! Keep practicing!':'Keep studying, you\'ll get there!';
+  }
+  function restart(){cur=0;score=0;document.getElementById('scoreDisplay').textContent=0;document.getElementById('quizBody').style.display='block';document.getElementById('result').style.display='none';load();}
+  load();
+</script>
+</body>
+</html>
